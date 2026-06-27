@@ -1,1 +1,88 @@
+name: Build Silverblue ISO
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bootc/Containerfile'
+      - 'config/**'
+      - 'wallpapers/**'
+      - '.github/workflows/build-iso.yml'
+  workflow_dispatch:  # możliwość ręcznego uruchomienia z GitHub UI
+
+jobs:
+  build:
+    name: Build ISO (MacBook Air A1466)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # potrzebne do tworzenia Release
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y podman
+
+      - name: Build container image
+        run: |
+          podman build \
+            --tag mba-a1466:latest \
+            --file bootc/Containerfile \
+            .
+
+      - name: Generate ISO (bootc-image-builder)
+        run: |
+          mkdir -p output
+          sudo podman run \
+            --rm \
+            --privileged \
+            --pull=newer \
+            --security-opt label=type:unconfined_t \
+            -v "$(pwd)/output:/output" \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            quay.io/centos-bootc/bootc-image-builder:latest \
+            --type anaconda-iso \
+            --local \
+            localhost/mba-a1466:latest
+
+      - name: Rename ISO
+        run: |
+          ISO=$(find output -name "*.iso" | head -1)
+          mv "$ISO" output/fedora-silverblue-mba-a1466.iso
+          ls -lh output/fedora-silverblue-mba-a1466.iso
+
+      - name: Get version tag
+        id: version
+        run: echo "tag=$(date +'%Y%m%d')-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ steps.version.outputs.tag }}
+          name: "Silverblue ISO — ${{ steps.version.outputs.tag }}"
+          body: |
+            ## Fedora Silverblue — MacBook Air A1466
+
+            Automatyczny build z `bootc-image-builder`.
+
+            ### Instalacja
+            1. Pobierz `fedora-silverblue-mba-a1466.iso`
+            2. Nagraj na pendrive: `dd if=fedora-silverblue-mba-a1466.iso of=/dev/sdX bs=4M status=progress`
+            3. Boot na A1466 trzymając **Option (⌥)**
+
+            ### Co jest w środku
+            - Fedora Silverblue 42
+            - broadcom-wl (Wi-Fi BCM4360)
+            - Intel VA-API, TLP, btop, Chrome, Papirus
+            - Inter + JetBrains Mono
+            - GNOME dark theme, PL keyboard, touchpad config
+
+            **Commit:** ${{ github.sha }}
+          files: output/fedora-silverblue-mba-a1466.iso
+          draft: false
+          prerelease: false
 
