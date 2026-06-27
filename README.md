@@ -108,8 +108,8 @@ systemctl reboot
 ```bash
 # Sklonuj lub skopiuj ten folder na A1466
 cd fedora-a1466/
-chmod +x scripts/post-install.sh
-./scripts/post-install.sh
+chmod +x scripts/install-mba-a1466.sh
+sudo ./scripts/install-mba-a1466.sh
 ```
 
 Skrypt wykonuje:
